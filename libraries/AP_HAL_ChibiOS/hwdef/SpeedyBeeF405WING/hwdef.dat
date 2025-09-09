@@ -139,7 +139,7 @@ define HAL_DEFAULT_INS_FAST_SAMPLE 1
 # one baro
 BARO SPL06  I2C:0:0x76
 define AP_BARO_BACKEND_DEFAULT_ENABLED 0
-define AP_BARO_SPL06_ENABLED 1
+define AP_BARO_SPL06_ENABLED 0
 
 # no built-in compass, but probe the i2c bus for all possible
 # external compass types
@@ -170,6 +170,9 @@ PC13 PINIO1 OUTPUT GPIO(81) LOW
 
 # minimal drivers to reduce flash usage
 include ../include/minimize_fpv_osd.inc
+
+# enable MN68820 rangefinder
+define AP_RANGEFINDER_MN68820_ENABLED 1
 
 undef AP_CAMERA_MOUNT_ENABLED
 undef HAL_MOUNT_ENABLED

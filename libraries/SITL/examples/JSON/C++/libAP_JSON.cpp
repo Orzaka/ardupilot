@@ -236,6 +236,6 @@ void libAP_JSON::setRangefinder(double *rangefinder_in, uint8_t n)
             rangefinder[i] = rangefinder_in[i];
         }
     } else {
-        std::cout << "[libAP_JSON] Too many rangerfinder values!" << std::endl;
+        std::cout << "[libAP_JSON] Too many  values!" << std::endl;
     }
 }

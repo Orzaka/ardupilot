@@ -62,6 +62,7 @@
 #include "AP_RangeFinder_JRE_Serial.h"
 #include "AP_RangeFinder_Ainstein_LR_D1.h"
 #include "AP_RangeFinder_RDS02UF.h"
+#include "AP_RangeFinder_MN68820.h"
 
 #include <AP_BoardConfig/AP_BoardConfig.h>
 #include <AP_Logger/AP_Logger.h>
@@ -288,6 +289,19 @@ __INITFUNC__ void RangeFinder::detect_instance(uint8_t instance, uint8_t& serial
 
     const Type _type = (Type)params[instance].type.get();
     switch (_type) {
+#if AP_RANGEFINDER_MN68820_ENABLED
+    case Type::MN68820: {
+        uint8_t addr = params[instance].address ? params[instance].address : 0x29; // TODO: set default if known
+        FOREACH_I2C(i) {
+            if (_add_backend(AP_RangeFinder_MN68820::detect(state[instance], params[instance],
+                                                           hal.i2c_mgr->get_device(i, addr)),
+                             instance)) {
+                break;
+            }
+        }
+        break;
+    }
+#endif
 #if AP_RANGEFINDER_PULSEDLIGHTLRF_ENABLED
     case Type::PLI2C:
     case Type::PLI2CV3:

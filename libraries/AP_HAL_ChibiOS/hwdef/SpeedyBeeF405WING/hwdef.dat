@@ -168,11 +168,14 @@ ROMFS_WILDCARD libraries/AP_OSD/fonts/font0.bin
 #VTX power control
 PC13 PINIO1 OUTPUT GPIO(81) LOW
 
+# enable MN68820 rangefinder before minimize_fpv_osd.inc
+define AP_RANGEFINDER_MN68820_ENABLED 1
+
+# MN68820 rangefinder I2C device
+RANGEFINDER MN68820 I2C:1:0x41
+
 # minimal drivers to reduce flash usage
 include ../include/minimize_fpv_osd.inc
-
-# enable MN68820 rangefinder
-define AP_RANGEFINDER_MN68820_ENABLED 1
 
 undef AP_CAMERA_MOUNT_ENABLED
 undef HAL_MOUNT_ENABLED

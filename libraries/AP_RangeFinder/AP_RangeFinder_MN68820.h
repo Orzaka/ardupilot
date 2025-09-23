@@ -36,6 +36,11 @@ private:
     bool read_register16(uint8_t reg, uint16_t &value);
     bool write_register(uint8_t reg, uint8_t value);
     bool write_register16(uint8_t reg, uint16_t value);
+    
+    // MN68820 specific I2C functions (based on STM32F103 implementation)
+    bool mn68820_read(uint8_t reg, uint8_t *data, uint8_t len);
+    bool mn68820_write(uint8_t reg, const uint8_t *data, uint8_t len);
+    bool mn68820_write_direct(uint8_t reg, const uint8_t *data, uint8_t len);
 
     // MN68820 boot/patch helpers (from reference test code)
     bool status_read_ok();

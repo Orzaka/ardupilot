@@ -291,7 +291,7 @@ __INITFUNC__ void RangeFinder::detect_instance(uint8_t instance, uint8_t& serial
     switch (_type) {
 #if AP_RANGEFINDER_MN68820_ENABLED
     case Type::MN68820: {
-        uint8_t addr = params[instance].address ? params[instance].address : 0x29; // TODO: set default if known
+        uint8_t addr = params[instance].address ? params[instance].address : 0x41; // MN68820 default I2C address
         FOREACH_I2C(i) {
             if (_add_backend(AP_RangeFinder_MN68820::detect(state[instance], params[instance],
                                                            hal.i2c_mgr->get_device(i, addr)),

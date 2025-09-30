@@ -281,7 +281,7 @@ __INITFUNC__ bool RangeFinder::_add_backend(AP_RangeFinder_Backend *backend, uin
 }
 
 /*
-  detect if an instance of a rangefinder is connected. 
+  detect if an instance of a rangefinder is connected.
  */
 __INITFUNC__ void RangeFinder::detect_instance(uint8_t instance, uint8_t& serial_instance)
 {
@@ -943,7 +943,7 @@ bool RangeFinder::prearm_healthy(char *failure_msg, const uint8_t failure_msg_le
             }
             break;
         }
-#endif // AP_RANGEFINDER_NRA24_CAN_DRIVER_ENABLED 
+#endif // AP_RANGEFINDER_NRA24_CAN_DRIVER_ENABLED
 
         default:
             break;

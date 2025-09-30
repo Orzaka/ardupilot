@@ -34,26 +34,51 @@ AP_RangeFinder_Backend *AP_RangeFinder_MN68820::detect(RangeFinder::RangeFinder_
                                                        AP_RangeFinder_Params &_params,
                                                        AP_HAL::OwnPtr<AP_HAL::I2CDevice> dev)
 {
+    // CRITICAL: Send to GCS immediately so we know detect() was called
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: detect() called - TESTING");
+    DEV_PRINTF("MN68820: detect() called\n");
+
     if (!dev) {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "MN68820: ERROR - I2C device is null!");
+        DEV_PRINTF("MN68820: ERROR - I2C device is null in detect()\n");
         return nullptr;
     }
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: I2C device exists, continuing...");
+
+    DEV_PRINTF("MN68820: I2C device OK, creating sensor object\n");
 
     AP_RangeFinder_MN68820 *sensor = NEW_NOTHROW AP_RangeFinder_MN68820(_state, _params, std::move(dev));
     if (!sensor) {
+        DEV_PRINTF("MN68820: ERROR - Failed to allocate sensor object\n");
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "MN68820: Failed to allocate sensor");
         delete sensor;
         return nullptr;
     }
+
+    DEV_PRINTF("MN68820: Sensor object created, starting probe and init\n");
 
     auto *sem = sensor->dev->get_semaphore();
     sem->take_blocking();
-    const bool ok = sensor->probe() && sensor->init();
+    const bool probe_ok = sensor->probe();
+    DEV_PRINTF("MN68820: probe() returned %d\n", probe_ok);
+
+    bool init_ok = false;
+    if (probe_ok) {
+        init_ok = sensor->init();
+        DEV_PRINTF("MN68820: init() returned %d\n", init_ok);
+    }
     sem->give();
 
-    if (!ok) {
+    if (!probe_ok || !init_ok) {
+        DEV_PRINTF("MN68820: Detection failed (probe=%d, init=%d), deleting sensor\n", probe_ok, init_ok);
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "MN68820: Detection failed (probe=%d init=%d)", probe_ok, init_ok);
         delete sensor;
         return nullptr;
     }
 
+    DEV_PRINTF("MN68820: Detection successful!\n");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: Detection successful");
     return sensor;
 }
 
@@ -61,44 +86,38 @@ bool AP_RangeFinder_MN68820::probe()
 {
     // According to datasheet: write 0x81 to reset register, then check if it returns 0x41
     // Based on STM32F103 implementation with exact same logic
-    
-    // Use both console and GCS for debugging
-    hal.console->printf("MN68820: Probing device...\n");
+
+    // Debug output via GCS (visible in Mission Planner/QGC)
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: Probing device...");
-    
+
     // Check if I2C device is valid
     if (!dev) {
-        hal.console->printf("MN68820: ERROR - I2C device is null!\n");
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "MN68820: I2C device is null");
         return false;
     }
-    
-    hal.console->printf("MN68820: I2C device OK, starting probe...\n");
-    
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: I2C device OK, starting probe...");
+
     // First, try a simple I2C read to see if device responds
     uint8_t test_data[1];
     if (!dev->transfer(nullptr, 0, test_data, 1)) {
-        hal.console->printf("MN68820: ERROR - I2C device not responding\n");
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "MN68820: I2C device not responding");
         return false;
     }
-    hal.console->printf("MN68820: I2C device responding, continuing probe...\n");
-    
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: I2C device responding, continuing probe...");
+
     uint8_t regval = 0;
     uint32_t tick = 0;
 
     // Step 1: Write reset command 0x81 (equivalent to I2C_MN68820_Write(0xE0, &regval, 1))
     regval = 0x81;
-    hal.console->printf("MN68820: Writing reset command 0x81 to register 0x%02X\n", REG_RESET);
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: Writing reset command 0x81 to register 0x%02X", REG_RESET);
     if (!write_register(REG_RESET, regval)) {
-        hal.console->printf("MN68820: ERROR - Failed to write reset command during probe\n");
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "MN68820: Failed to write reset command during probe");
         return false;
     }
-    hal.console->printf("MN68820: Reset command written successfully\n");
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: Reset command written successfully");
-    
+
     // Step 2: Wait for device to process reset command (equivalent to HAL_Delay(100))
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: Waiting 100ms for device to process reset...");
     hal.scheduler->delay(100);
@@ -123,7 +142,7 @@ bool AP_RangeFinder_MN68820::probe()
             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: Probe successful, CPU ready (0x41) after %lu attempts", (unsigned long)(tick + 1));
             return true;
         }
-        
+
         tick++;
         if (tick >= 100) {  // Same timeout as STM32F103 implementation (100 attempts)
             GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "MN68820: Probe timeout after 100 attempts, last value was 0x%02X", regval);
@@ -136,7 +155,7 @@ bool AP_RangeFinder_MN68820::probe()
 bool AP_RangeFinder_MN68820::init()
 {
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: Starting initialization");
-    
+
     // Device should already be reset and CPU ready from probe()
     // Just verify CPU is still ready
     uint8_t v = 0;
@@ -157,19 +176,19 @@ bool AP_RangeFinder_MN68820::init()
         return false;
     }
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: Download init successful");
-    
+
     if (!set_ram_addr(0x0000)) {
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "MN68820: Failed to set RAM address");
         return false;
     }
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: RAM address set to 0x0000");
-    
+
     if (!write_ram_image()) {
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "MN68820: Failed to write firmware image");
         return false;
     }
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: Firmware image written successfully");
-    
+
     if (!ram_remap_and_reset()) {
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "MN68820: RAM remap and reset failed");
         return false;
@@ -271,7 +290,7 @@ bool AP_RangeFinder_MN68820::mn68820_write(uint8_t reg, const uint8_t *data, uin
         GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "MN68820: I2C register select failed at reg 0x%02X", reg);
         return false;
     }
-    
+
     if (!dev->transfer(data, len, nullptr, 0)) {
         GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "MN68820: I2C write failed at reg 0x%02X", reg);
         return false;
@@ -285,7 +304,7 @@ bool AP_RangeFinder_MN68820::mn68820_write_direct(uint8_t reg, const uint8_t *da
     uint8_t cmd[len + 1];
     cmd[0] = reg;
     memcpy(&cmd[1], data, len);
-    
+
     if (!dev->transfer(cmd, len + 1, nullptr, 0)) {
         GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "MN68820: I2C direct write failed at reg 0x%02X", reg);
         return false;
@@ -303,20 +322,20 @@ bool AP_RangeFinder_MN68820::status_read_ok()
         return false;
     }
     GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "MN68820: Status bytes: 0x%02X 0x%02X 0x%02X", buf[0], buf[1], buf[2]);
-    
+
     // Check for expected status: 0x00 0x00 0xFF (from STM32F103 implementation)
     // Also check for alternative status patterns that might indicate success
     if (buf[0] == 0x00 && buf[1] == 0x00 && buf[2] == 0xFF) {
         return true;
     }
-    
+
     // Check if we're getting 0x41 0x00 0x00 which might be a different success indicator
     // This could indicate the command was received but not yet processed
     if (buf[0] == 0x41 && buf[1] == 0x00 && buf[2] == 0x00) {
         GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "MN68820: Got 0x41 status, might be processing...");
         return false;  // Not ready yet, but not an error
     }
-    
+
     return false;
 }
 
@@ -324,39 +343,39 @@ bool AP_RangeFinder_MN68820::download_init()
 {
     // Use the working command from STM32F103 implementation
     const uint8_t cmd[4] = {0x14, 0x01, 0x29, 0xC1};
-    
+
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: Sending download init command: 0x%02X 0x%02X 0x%02X 0x%02X", cmd[0], cmd[1], cmd[2], cmd[3]);
-    
+
     // Send command to register 0x08 (equivalent to I2C_MN68820_Write(0x08, cmd_buf, 4))
     if (!mn68820_write(REG_STATUS_FLAG, cmd, 4)) {
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "MN68820: Failed to send download init command");
         return false;
     }
-    
+
     // Add a small delay before checking status (like STM32F103 implementation)
     hal.scheduler->delay(1);
-    
+
     // Wait for status confirmation - following STM32F103 implementation exactly
     uint32_t start = AP_HAL::millis();
     while (AP_HAL::millis() - start < 10) {  // 10ms timeout like STM32F103 implementation
-        if (status_read_ok()) { 
+        if (status_read_ok()) {
             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: Download init status OK");
-            return true; 
+            return true;
         }
         hal.scheduler->delay(1);
     }
-    
+
     // If first attempt failed, try again with longer timeout
     GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "MN68820: First attempt failed, retrying...");
     start = AP_HAL::millis();
     while (AP_HAL::millis() - start < 50) {  // Extended timeout for retry
-        if (status_read_ok()) { 
+        if (status_read_ok()) {
             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: Download init status OK on retry");
-            return true; 
+            return true;
         }
         hal.scheduler->delay(1);
     }
-    
+
     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "MN68820: Download init timeout after retry");
     return false;
 }
@@ -369,18 +388,18 @@ bool AP_RangeFinder_MN68820::set_ram_addr(uint16_t addr)
     cmd[2] = uint8_t(addr & 0xFF);
     cmd[3] = uint8_t((addr >> 8) & 0xFF);
     cmd[4] = (uint8_t)((cmd[0] + cmd[1] + cmd[2] + cmd[3]) ^ 0xFF);
-    
+
     // Send RAM address command (equivalent to I2C_MN68820_Write(0x08, cmd, 5))
     if (!mn68820_write(REG_STATUS_FLAG, cmd, 5)) {
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "MN68820: Failed to send RAM address command");
         return false;
     }
-    
+
     uint32_t start = AP_HAL::millis();
     while (AP_HAL::millis() - start < 10) {
-        if (status_read_ok()) { 
+        if (status_read_ok()) {
             GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "MN68820: RAM address set to 0x%04X", addr);
-            return true; 
+            return true;
         }
         hal.scheduler->delay(1);
     }
@@ -403,8 +422,8 @@ bool AP_RangeFinder_MN68820::write_ram_image()
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "MN68820: Invalid firmware image size: %u bytes", image_size);
         return false;
     }
-    
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: Writing firmware image (%u bytes, %u segments)", 
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: Writing firmware image (%u bytes, %u segments)",
                   image_size, image_size / 16);
 
     uint8_t cmd[19] = {0};
@@ -435,7 +454,7 @@ bool AP_RangeFinder_MN68820::write_ram_image()
             GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "MN68820: Segment %u/%u write timeout", i+1, segments);
             return false;
         }
-        
+
         // 每 10 個段顯示一次進度
         if ((i + 1) % 10 == 0 || i == segments - 1) {
             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MN68820: Firmware write progress: %u/%u segments", i+1, segments);
@@ -474,5 +493,3 @@ bool AP_RangeFinder_MN68820::ram_remap_and_reset()
 }
 
 #endif // AP_RANGEFINDER_MN68820_ENABLED
-
-

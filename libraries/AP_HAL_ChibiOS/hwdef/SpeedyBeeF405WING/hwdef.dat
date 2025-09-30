@@ -98,9 +98,11 @@ PA3 USART2_RX USART2 NODMA ALT(1)
 PC10 USART3_TX USART3
 PC11 USART3_RX USART3 NODMA
 
-# UART4 serial4
+# UART4 serial4 - 設定為 console 輸出
 PA0 UART4_TX UART4
 PA1 UART4_RX UART4 NODMA
+STDOUT_SERIAL SD4
+STDOUT_BAUDRATE 115200
 
 # USART5 (DJI / VTX)
 PC12 UART5_TX UART5
@@ -139,7 +141,7 @@ define HAL_DEFAULT_INS_FAST_SAMPLE 1
 # one baro
 BARO SPL06  I2C:0:0x76
 define AP_BARO_BACKEND_DEFAULT_ENABLED 0
-define AP_BARO_SPL06_ENABLED 0
+define AP_BARO_SPL06_ENABLED 1
 
 # no built-in compass, but probe the i2c bus for all possible
 # external compass types
@@ -168,11 +170,19 @@ ROMFS_WILDCARD libraries/AP_OSD/fonts/font0.bin
 #VTX power control
 PC13 PINIO1 OUTPUT GPIO(81) LOW
 
-# enable MN68820 rangefinder before minimize_fpv_osd.inc
+# enable RangeFinder system and MN68820 rangefinder before minimize_fpv_osd.inc
+define AP_RANGEFINDER_ENABLED 1
 define AP_RANGEFINDER_MN68820_ENABLED 1
 
+# enable debug output
+define HAL_DEBUG_BUILD 1
+define HAL_CONSOLE_DISABLED 0
+define HAL_DEBUG_BUILD 1
+define HAL_DEBUG_BUILD 1
+
 # MN68820 rangefinder I2C device
-RANGEFINDER MN68820 I2C:1:0x41
+# I2C:0 means first I2C bus in I2C_ORDER (which is I2C1)
+RANGEFINDER MN68820 I2C:0:0x41
 
 # minimal drivers to reduce flash usage
 include ../include/minimize_fpv_osd.inc

@@ -1,0 +1,20 @@
+# MN68820 RangeFinder 參數配置文件
+# 使用方式：在 Mission Planner 中 Config → Full Parameter List → Load from file
+
+# ========== RangeFinder 1 設定 ==========
+RNGFND1_TYPE,45          # MN68820 類型編號（最重要！）
+RNGFND1_ADDR,65          # I2C 地址 0x41 (十進制 65)
+RNGFND1_ORIENT,25        # 朝向：Down（向下）
+RNGFND1_MIN_CM,30        # 最小測距 30cm
+RNGFND1_MAX_CM,1500      # 最大測距 1500cm (15m)
+RNGFND1_GNDCLEAR,10      # 離地間隙 10cm
+RNGFND1_STOP_PIN,-1      # 無停止引腳
+RNGFND1_SETTLING,0       # 無settling time
+RNGFND1_RMETRIC,1        # 使用公制單位
+RNGFND1_PWRRNG,0         # 無電源範圍控制
+RNGFND1_FUNCTION,0       # 功能：Alt (高度)
+
+# 如果需要啟用第二個 RangeFinder，取消以下註解：
+# RNGFND2_TYPE,0
+# RNGFND2_ADDR,0
+
